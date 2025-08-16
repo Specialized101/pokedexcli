@@ -21,10 +21,32 @@ func startRepl() {
 		if len(text) == 0 {
 			continue
 		}
-		fmt.Printf("Your command was: %s\n", text[0])
+		command, exists := getCommands()[text[0]]
+		if !exists {
+			fmt.Println("Unknown command")
+			continue
+		}
+		if err := command.callback(); err != nil {
+			fmt.Printf("Error during the command execution: %v", err)
+		}
 	}
 }
 
 func cleanInput(text string) []string {
 	return strings.Fields(strings.ToLower(strings.TrimSpace(text)))
+}
+
+func commandExit() error {
+	fmt.Println("Closing the Pokedex... Goodbye!")
+	os.Exit(0)
+	return nil
+}
+
+func commandHelp() error {
+	fmt.Println("Welcome to the Pokedex!")
+	fmt.Printf("Usage:\n\n")
+	for _, c := range getCommands() {
+		fmt.Printf("%s: %s\n", c.name, c.description)
+	}
+	return nil
 }
