@@ -4,13 +4,18 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/Specialized101/pokedexcli/internal/pokecache"
 )
 
 func startRepl() {
-	nextPage := getConfig()
+	config := getConfig()
+	cache := pokecache.NewCache(10 * time.Second)
 	for {
 		fmt.Print("Pokedex > ")
 		input := bufio.NewScanner(os.Stdin)
@@ -32,7 +37,7 @@ func startRepl() {
 			continue
 		}
 
-		if err := command.callback(nextPage()); err != nil {
+		if err := command.callback(config(), cache); err != nil {
 			fmt.Println(err.Error())
 		}
 	}
@@ -42,13 +47,13 @@ func cleanInput(text string) []string {
 	return strings.Fields(strings.ToLower(strings.TrimSpace(text)))
 }
 
-func commandExit(c *Config) error {
+func commandExit(c *Config, cache *pokecache.Cache) error {
 	fmt.Println("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 	return nil
 }
 
-func commandHelp(c *Config) error {
+func commandHelp(c *Config, cache *pokecache.Cache) error {
 	fmt.Println("Welcome to the Pokedex!")
 	fmt.Printf("Usage:\n\n")
 	for _, c := range getCommands() {
@@ -57,67 +62,93 @@ func commandHelp(c *Config) error {
 	return nil
 }
 
-func commandMapf(c *Config) error {
+func commandMapf(c *Config, cache *pokecache.Cache) error {
 	if c == nil {
 		return fmt.Errorf("error: c (*config) was nil")
 	}
-	req, err := http.NewRequest("GET", c.nextUrl, nil)
-	if err != nil {
-		return fmt.Errorf("error while creating the request: %w", err)
+	cachedData, ok := cache.Get(c.nextUrl)
+	if ok {
+		fmt.Println("LOG: Retrieving data from cache...")
+		displayLocationsFromCache(c, cachedData)
+		return nil
 	}
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	res, err := client.Do(req)
+	fmt.Println("LOG: Data not in cache, making a new request ...")
+
+	res, err := makeGetRequest(c.nextUrl)
 	if err != nil {
-		return fmt.Errorf("error while doing the request: %w", err)
+		return err
 	}
 	defer res.Body.Close()
-
-	var data LocationAreaResponse
-	decoder := json.NewDecoder(res.Body)
-	if err := decoder.Decode(&data); err != nil {
-		return fmt.Errorf("error while decoding the response to json format: %w", err)
+	rawData, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
 	}
-	c.setNextUrl(data.NextUrl)
-	c.setPrevUrl(data.PrevUrl)
+	fmt.Println("LOG: Saving data to cache...")
 
-	for _, location := range data.Results {
-		fmt.Println(location.Name)
-	}
+	cache.Add(c.nextUrl, rawData)
+
+	displayLocationsFromCache(c, rawData)
 
 	return nil
 }
 
-func commandMapb(c *Config) error {
+func commandMapb(c *Config, cache *pokecache.Cache) error {
 	if c == nil {
 		return fmt.Errorf("error: c (*config) was nil")
 	}
 	if c.prevUrl == "" {
 		return fmt.Errorf("you're on the first page")
 	}
-	req, err := http.NewRequest("GET", c.prevUrl, nil)
+	cachedData, ok := cache.Get(c.prevUrl)
+	if ok {
+		fmt.Println("LOG: Retrieving data from cache...")
+		displayLocationsFromCache(c, cachedData)
+		return nil
+	}
+	fmt.Println("LOG: Data not in cache, making a new request ...")
+	res, err := makeGetRequest(c.prevUrl)
 	if err != nil {
-		return fmt.Errorf("error while creating the request: %w", err)
+		return err
+	}
+	defer res.Body.Close()
+
+	rawData, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+	fmt.Println("LOG: Saving data to cache...")
+
+	cache.Add(c.prevUrl, rawData)
+
+	displayLocationsFromCache(c, rawData)
+
+	return nil
+}
+
+func displayLocationsFromCache(c *Config, data []byte) error {
+	var la LocationAreaResponse
+	err := json.Unmarshal(data, &la)
+	if err != nil {
+		return err
+	}
+	for _, loc := range la.Results {
+		fmt.Println(loc.Name)
+	}
+	c.setNextUrl(la.NextUrl)
+	c.setPrevUrl(la.PrevUrl)
+	return nil
+}
+
+func makeGetRequest(url string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("error while doing the request: %w", err)
+		return nil, err
 	}
-	defer res.Body.Close()
-
-	var data LocationAreaResponse
-	decoder := json.NewDecoder(res.Body)
-	if err := decoder.Decode(&data); err != nil {
-		return fmt.Errorf("error while decoding the response to json format: %w", err)
-	}
-	c.setNextUrl(data.NextUrl)
-	c.setPrevUrl(data.PrevUrl)
-
-	for _, location := range data.Results {
-		fmt.Println(location.Name)
-	}
-
-	return nil
+	return res, nil
 }

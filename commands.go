@@ -1,9 +1,13 @@
 package main
 
+import (
+	"github.com/Specialized101/pokedexcli/internal/pokecache"
+)
+
 type cliCommand struct {
 	name        string
 	description string
-	callback    func(*Config) error
+	callback    func(*Config, *pokecache.Cache) error
 }
 
 func getCommands() map[string]cliCommand {
