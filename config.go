@@ -3,6 +3,7 @@ package main
 type Config struct {
 	nextUrl string
 	prevUrl string
+	param   string
 }
 
 func getConfig() func() *Config {
@@ -21,4 +22,8 @@ func (c *Config) setNextUrl(url string) {
 
 func (c *Config) setPrevUrl(url string) {
 	c.prevUrl = url
+}
+
+func (c *Config) setParam(param string) {
+	c.param = param
 }

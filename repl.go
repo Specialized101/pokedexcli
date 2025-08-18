@@ -36,7 +36,11 @@ func startRepl() {
 			fmt.Println("Unknown command")
 			continue
 		}
-
+		var param string
+		if len(text) > 1 {
+			param = text[1]
+		}
+		config().setParam(param)
 		if err := command.callback(config(), cache); err != nil {
 			fmt.Println(err.Error())
 		}
@@ -125,6 +129,34 @@ func commandMapb(c *Config, cache *pokecache.Cache) error {
 	return nil
 }
 
+func commandExplore(c *Config, cache *pokecache.Cache) error {
+	if c.param == "" {
+		return fmt.Errorf("usage: explore [location name]\nexample: explore mt-coronet-2f\n\nTry map to see the list of locations")
+	}
+
+	fullUrl := fmt.Sprintf("%s/%s", LOCATION_AREA_URL, c.param)
+	res, err := makeGetRequest(fullUrl)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	rawData, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+	var pokemons PokemonList
+	err = json.Unmarshal(rawData, &pokemons)
+	if err != nil {
+		return err
+	}
+
+	for _, p := range pokemons.Pokemons {
+		fmt.Printf(" - %s\n", p.Pokemon.Name)
+	}
+
+	return nil
+}
+
 func displayLocationsFromCache(c *Config, data []byte) error {
 	var la LocationAreaResponse
 	err := json.Unmarshal(data, &la)
@@ -149,6 +181,9 @@ func makeGetRequest(url string) (*http.Response, error) {
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, err
+	}
+	if res.StatusCode == 404 {
+		return nil, fmt.Errorf("the location area does not exist")
 	}
 	return res, nil
 }
