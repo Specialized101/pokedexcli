@@ -4,6 +4,7 @@ type Config struct {
 	nextUrl string
 	prevUrl string
 	param   string
+	pokedex map[string]Pokemon
 }
 
 func getConfig() func() *Config {
@@ -11,6 +12,7 @@ func getConfig() func() *Config {
 	if config.prevUrl == "" {
 		config.nextUrl = LOCATION_AREA_URL
 	}
+	config.pokedex = make(map[string]Pokemon)
 	return func() *Config {
 		return &config
 	}

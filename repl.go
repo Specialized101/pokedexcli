@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -135,6 +137,12 @@ func commandExplore(c *Config, cache *pokecache.Cache) error {
 	}
 
 	fullUrl := fmt.Sprintf("%s/%s", LOCATION_AREA_URL, c.param)
+	cachedData, ok := cache.Get(fullUrl)
+	if ok {
+		fmt.Println("Log: Retrieving data from cache...")
+		displayPokemonListFromCache(cachedData)
+		return nil
+	}
 	res, err := makeGetRequest(fullUrl)
 	if err != nil {
 		return err
@@ -144,8 +152,63 @@ func commandExplore(c *Config, cache *pokecache.Cache) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("LOG: Saving data to cache...")
+	cache.Add(fullUrl, rawData)
+
+	displayPokemonListFromCache(rawData)
+	return nil
+}
+
+func commandCatch(c *Config, cache *pokecache.Cache) error {
+	if c.param == "" {
+		return fmt.Errorf("usage: catch [pokemon name]\nexample: catch pikachu")
+	}
+
+	fullUrl := fmt.Sprintf("%s/%s", POKEMON_URL, c.param)
+	cachedData, ok := cache.Get(fullUrl)
+	if !ok {
+		res, err := makeGetRequest(fullUrl)
+		if err != nil {
+			return err
+		}
+		defer res.Body.Close()
+		cachedData, err = io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+		cache.Add(fullUrl, cachedData)
+		// fmt.Println(cachedData)~
+	}
+	var pokemon Pokemon
+
+	err := json.Unmarshal(cachedData, &pokemon)
+	if err != nil {
+		fmt.Println("here")
+		return err
+	}
+
+	succeeded := attemptToCatchPokemon(pokemon)
+	if succeeded {
+		fmt.Printf("%s was caught!\n", pokemon.Name)
+		c.pokedex[pokemon.Name] = pokemon
+	} else {
+		fmt.Printf("%s escaped!\n", pokemon.Name)
+	}
+	return nil
+}
+
+func attemptToCatchPokemon(p Pokemon) bool {
+	fmt.Printf("Throwing a Pokeball at %s...\n", p.Name)
+	baseExp := max(p.BaseExp, MAX_ATTEMPT)
+	maxBex := max(p.BaseExp, MAX_BEX)
+
+	attemps := MIN_ATTEMPT + ((baseExp-MAX_ATTEMPT)/(maxBex-MAX_ATTEMPT))*(MAX_ATTEMPT-MIN_ATTEMPT)
+	return rand.Intn(attemps) == 0
+}
+
+func displayPokemonListFromCache(data []byte) error {
 	var pokemons PokemonList
-	err = json.Unmarshal(rawData, &pokemons)
+	err := json.Unmarshal(data, &pokemons)
 	if err != nil {
 		return err
 	}
