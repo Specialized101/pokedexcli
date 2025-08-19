@@ -197,6 +197,29 @@ func commandCatch(c *Config, cache *pokecache.Cache) error {
 	return nil
 }
 
+func commandInspect(c *Config, cache *pokecache.Cache) error {
+	if c.param == "" {
+		return fmt.Errorf("usage: catch [pokemon name]\nexample: catch pikachu")
+	}
+
+	pokemon, exists := c.pokedex[c.param]
+	if !exists {
+		return fmt.Errorf("you have not caught that pokemon")
+	}
+	fmt.Printf("Name: %s\n", pokemon.Name)
+	fmt.Printf("Height: %d\n", pokemon.Height)
+	fmt.Printf("Weight: %d\n", pokemon.Weight)
+	fmt.Println("Stats:")
+	for _, s := range pokemon.Stats {
+		fmt.Printf("  -%s: %d\n", s.StatData.Name, s.Base)
+	}
+	fmt.Println("Types:")
+	for _, t := range pokemon.Types {
+		fmt.Printf("  - %s\n", t.Type.Name)
+	}
+	return nil
+}
+
 func attemptToCatchPokemon(p Pokemon) bool {
 	fmt.Printf("Throwing a Pokeball at %s...\n", p.Name)
 	baseExp := max(p.BaseExp, MAX_ATTEMPT)
@@ -246,7 +269,7 @@ func makeGetRequest(url string) (*http.Response, error) {
 		return nil, err
 	}
 	if res.StatusCode == 404 {
-		return nil, fmt.Errorf("the location area does not exist")
+		return nil, fmt.Errorf("the ressource does not exist")
 	}
 	return res, nil
 }
