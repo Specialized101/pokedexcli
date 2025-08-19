@@ -220,6 +220,17 @@ func commandInspect(c *Config, cache *pokecache.Cache) error {
 	return nil
 }
 
+func commandPokedex(c *Config, cache *pokecache.Cache) error {
+	if len(c.pokedex) == 0 {
+		return fmt.Errorf("your pokedex is empty")
+	}
+	fmt.Println("Your Pokedex:")
+	for p := range c.pokedex {
+		fmt.Printf("  - %s\n", p)
+	}
+	return nil
+}
+
 func attemptToCatchPokemon(p Pokemon) bool {
 	fmt.Printf("Throwing a Pokeball at %s...\n", p.Name)
 	baseExp := max(p.BaseExp, MAX_ATTEMPT)
